@@ -11,5 +11,7 @@
     "downloader"
   ],
   "author": "Fabien Sa",
-  "license": "BSD-2-Clause"
+  "license": "MIT",
+  "homepage": "https://github.com/BafS/arte7dl",
+  "preferGlobal": "true"
 }
