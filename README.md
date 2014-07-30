@@ -1,4 +1,13 @@
-arte7dl
-=======
+# Arte+7 downloader
 
-Arte+7 Downloader
+## Installation
+
+    npm install -g arte7dl
+
+## Usage
+
+    arte7dl [-q 2200|1500|800] <url>
+
+
+
+NOTE: This script is for PERSONAL USE ONLY.
