@@ -5,8 +5,13 @@ var ProgressBar = require('progress');
 var fs = require('fs');
 var argv = require('minimist')(process.argv.slice(2));
 
-var url = argv['_'][0];
+var url = argv._[0];
 var quality = argv.q;
+
+var titlePattern = argv.title;
+if(titlePattern === undefined) {
+	titlePattern = "%title%% - subtitle% %(year)% [arte]";
+}
 
 if(quality === 800) {
 	quality = 'HQ';
@@ -16,8 +21,10 @@ if(quality === 800) {
 	quality = 'SQ';
 }
 
-/*
+/**
  * Download data from url
+ * @param  {string}   url      data to download
+ * @param  {Function} callback
  */
 function download(url, callback) {
 	http.get(url, function(res) {
@@ -35,58 +42,70 @@ function download(url, callback) {
 	});
 }
 
-/*
+/**
  * Get json which contains the videos
+ * @param  {string}   html     find json in source
+ * @param  {Function} callback
  */
-function getJson(html, cb) {
+function getJson(html, callback) {
 
-	var pattern = / arte_vp_url="([^"]+)">/g,
+	var pattern = / arte_vp_url=["'](.+?)["']>/g,
 	    match,
-	    matches = [];
+	    jsonUrl;
 
-	while(match = pattern.exec(html)) {
+	while((match = pattern.exec(html))) {
 
 		if(match[1].match('PLUS7')) {
-			var jsonUrl = match[1].replace("player/", "");
+			jsonUrl = match[1].replace("/player/", "/");
 		}
-
-		matches.push(match[1].replace("player/", ""));
 	}
 
 	download(jsonUrl, function(data) {
 		var json = JSON.parse(data);
-		cb(json);
+		callback(json);
 	});
 }
 
-/*
+/**
  * Get mp4 video url
+ * @param  {string}   url      Arte url
+ * @param  {string}   quality  HQ, EQ, SQ
+ * @param  {Function} callback
  */
-function getVideoInfo(url, quality, cb) {
+function getVideoInfo(url, quality, callback) {
 	download(url, function(html) {
-
-		var pattern = /<h6>([^<]+)<\/h6/g,
-		    match,
-		    matches = [];
-
-		while(match = pattern.exec(html)) {
-			matches.push(match[1]);
-		}
-
-		var title = matches[0];
 
 		getJson(html, function(json) {
 
+			if(json.video.VTI === null) {
+				console.error("Error: No title found");
+				return;
+			}
+
+			var jsonVideo = json.video;
+
+			// Create video object with basic infos
+			var video = {};
+			video.title = jsonVideo.VTI;
+			video.subtitle = jsonVideo.VSU || "";
+			video.description = jsonVideo.VDE || "";
+			video.lang = jsonVideo.videoIsoLang || "";
+			video.year = jsonVideo.productionYear | 0;
+			video.time = jsonVideo.VDU | 0; // minutes
+			video.director = jsonVideo.director || "";
+			video.image = jsonVideo.programImage || "";
+
 			// Thanks to https://github.com/GuGuss/ARTE-7-Downloader
-			for(var i = 0; i < json["video"]["VSR"].length; i++) {
+			for(var i = 0; i < jsonVideo.VSR.length; i++) {
 
 				// Get the videos where VFO is "HBBTV".
-				if(json["video"]["VSR"][i]["VFO"] === "HBBTV") {
+				if(jsonVideo.VSR[i].VFO === "HBBTV") {
 
 					// Get the video URL using the requested quality.
-					if(json["video"]["VSR"][i]["VQU"] === quality) {
-						// console.log(quality + " MP4 URL : " + json["video"]["VSR"][i]["VUR"]);
-						cb(title, json["video"]["VSR"][i]["VUR"]);
+					if(jsonVideo.VSR[i].VQU === quality) {
+						// console.log(quality + " MP4 URL : " + jsonVideo.VSR[i].VUR);
+						callback(video, jsonVideo.VSR[i].VUR);
+						return;
 					}
 				}
 			}
@@ -94,10 +113,13 @@ function getVideoInfo(url, quality, cb) {
 	});
 }
 
-/*
+/**
  * Download video from url
+ * @param  {string}   url      Arte+7 page url
+ * @param  {string}   fileName Filename
+ * @param  {Function} callback
  */
-function downloadVideo(url, fileName, cb) {
+function downloadVideo(url, fileName, callback) {
 	var urlToken = require('url').parse(url);
 	var data = '';
 	var req = http.request({host: urlToken.host, path: urlToken.path});
@@ -106,7 +128,8 @@ function downloadVideo(url, fileName, cb) {
 		if(fileName) {
 			var len = parseInt(res.headers['content-length'], 10);
 
-			var bar = new ProgressBar(' downloading [:bar] :percent :etas', {
+			// Show a progressbar
+			var bar = new ProgressBar(' downloading [:bar] :percent  :etas', {
 				incomplete: ' ',
 				width: 30,
 				total: len
@@ -128,8 +151,8 @@ function downloadVideo(url, fileName, cb) {
 			if(fileName) {
 				fs.renameSync(fileName + '.tmp', fileName);
 			}
-			cb(data);
-		})
+			callback(data);
+		});
 	});
 
 	req.on('error', function(e) {
@@ -139,13 +162,33 @@ function downloadVideo(url, fileName, cb) {
 	req.end();
 }
 
-getVideoInfo(url, quality, function(title, url) {
-	console.log("Video url: " + url);
+
+// Main
+console.log("Video url:  " + url);
+
+getVideoInfo(url, quality, function(info, urlMedia) {
+
+	/**
+	 * Rename using file name pattern
+	 */
+	function rename(match, word, offset){
+		return word.replace(/([^\w]*?)(\w+)(.*?)$/g, function(match, before, word, after) {
+			if(info[word] === undefined) {
+				return "";
+			}
+			return "" + before + info[word] + after;
+		});
+	}
+
+	var title = titlePattern.replace(/%([^%]+?)%/g, rename);
+	
+	console.log("File title: " + title);
 
 	// sanitize file name
 	title = title.trim().replace(/[^\w\d_\-\.!\+\(\)\{\}\[\],;:~| áàâäãåçéèêëíìîïñóòôöõúùûüýÿæœÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸÆŒ]/g, "");
-	title += " [arte]";
 
-	downloadVideo(url, title + ".mp4");
+	downloadVideo(urlMedia, title + ".mp4", function() {
+		console.log("Download complete");
+	});
 });
 
