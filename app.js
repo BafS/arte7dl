@@ -6,8 +6,15 @@ var fs = require('fs');
 var argv = require('minimist')(process.argv.slice(2));
 
 var url = argv._[0];
-var quality = argv.q;
+if(url === undefined) {
+	console.warn("Usage:\n" +
+		"  arte7dl [-q 2200|1500|800] [--title 'title pattern'] <url>\n" +
+		"\nExemple:\n" +
+		"  arte7dl -q 800 'http://www.arte.tv/guide/fr/048707-028/silex-and-the-city'");
+	return;
+}
 
+var quality = argv.q;
 var titlePattern = argv.title;
 if(titlePattern === undefined) {
 	titlePattern = "%title%% - subtitle% %(year)% [arte]";
