@@ -1,21 +1,28 @@
 {
   "name": "arte7dl",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Arte Downloader",
   "main": "app.js",
+  "bin": {
+    "arte7dl": "app.js"
+  },
+  "preferGlobal": true,
   "dependencies": {
-    "progress": "latest",
-    "minimist": "~0.2.0"
+    "progress": "~1.1.8",
+    "minimist": "~1.1.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "arte",
-    "downloader"
+    "downloader",
+    "TV"
   ],
   "author": "Fabien Sa",
   "license": "MIT",
   "homepage": "https://github.com/BafS/arte7dl",
-  "preferGlobal": "true"
+  "bugs": {
+    "url": "https://github.com/BafS/arte7dl/issues"
+  }
 }
